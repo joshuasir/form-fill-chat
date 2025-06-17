@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Bot, User, ArrowUp, CheckCircle } from 'lucide-react';
 import ChatBubble from './ChatBubble';
-import UserInput from './UserInput';
+import SingleQuestionInput from './SingleQuestionInput';
 import { callOllama } from '../utils/ollamaApi';
 
 interface SurveySchema {
@@ -20,8 +20,8 @@ interface SurveySchema {
 
 interface ChatMessage {
   id: string;
-  type: 'bot' | 'user' | 'questions';
-  content: string | string[];
+  type: 'bot' | 'user' | 'question' | 'loading';
+  content: string;
   timestamp: Date;
 }
 
@@ -36,9 +36,11 @@ const ChatScreen = ({ formLink, onComplete }: ChatScreenProps) => {
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [iterationCount, setIterationCount] = useState(0);
   const [currentQuestions, setCurrentQuestions] = useState<string[]>([]);
-  const [userAnswers, setUserAnswers] = useState<string[]>([]);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [currentAnswers, setCurrentAnswers] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [waitingForAnswer, setWaitingForAnswer] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -68,6 +70,14 @@ const ChatScreen = ({ formLink, onComplete }: ChatScreenProps) => {
     setIsProcessing(true);
     
     try {
+      // Add welcome message
+      setChatHistory([{
+        id: Date.now().toString(),
+        type: 'bot',
+        content: "Hi! I'm here to help you fill out your survey. I'll ask you a few questions one at a time to gather the information needed. Let's get started!",
+        timestamp: new Date()
+      }]);
+
       // Mock Ollama response - replace with real API call
       const mockQuestions = [
         "Could you please tell me your full name?",
@@ -78,14 +88,13 @@ const ChatScreen = ({ formLink, onComplete }: ChatScreenProps) => {
       ];
       
       setCurrentQuestions(mockQuestions);
-      setChatHistory([{
-        id: Date.now().toString(),
-        type: 'questions',
-        content: mockQuestions,
-        timestamp: new Date()
-      }]);
+      setCurrentAnswers(new Array(mockQuestions.length).fill(''));
       
-      setUserAnswers(new Array(mockQuestions.length).fill(''));
+      // Ask the first question
+      setTimeout(() => {
+        askNextQuestion(mockQuestions, 0);
+      }, 1000);
+      
     } catch (error) {
       console.error('Error generating questions:', error);
     } finally {
@@ -93,15 +102,59 @@ const ChatScreen = ({ formLink, onComplete }: ChatScreenProps) => {
     }
   };
 
-  const handleAnswersSubmit = async (answers: string[]) => {
-    setIsProcessing(true);
-    setUserAnswers(answers);
+  const askNextQuestion = (questions: string[], index: number) => {
+    if (index < questions.length) {
+      setChatHistory(prev => [...prev, {
+        id: Date.now().toString(),
+        type: 'question',
+        content: questions[index],
+        timestamp: new Date()
+      }]);
+      setWaitingForAnswer(true);
+    }
+  };
+
+  const handleAnswerSubmit = async (answer: string) => {
+    if (!answer.trim()) return;
+
+    setWaitingForAnswer(false);
     
-    // Add user answers to chat
+    // Add user answer to chat
     setChatHistory(prev => [...prev, {
       id: Date.now().toString(),
       type: 'user',
-      content: answers.join('\n'),
+      content: answer,
+      timestamp: new Date()
+    }]);
+
+    // Store the answer
+    const newAnswers = [...currentAnswers];
+    newAnswers[currentQuestionIndex] = answer;
+    setCurrentAnswers(newAnswers);
+
+    const nextIndex = currentQuestionIndex + 1;
+    setCurrentQuestionIndex(nextIndex);
+
+    // Check if we've completed 5 questions
+    if (nextIndex >= currentQuestions.length) {
+      // Process the batch of 5 answers
+      await processBatchAnswers(newAnswers);
+    } else {
+      // Ask the next question after a short delay
+      setTimeout(() => {
+        askNextQuestion(currentQuestions, nextIndex);
+      }, 1000);
+    }
+  };
+
+  const processBatchAnswers = async (answers: string[]) => {
+    setIsProcessing(true);
+    
+    // Add loading message
+    setChatHistory(prev => [...prev, {
+      id: Date.now().toString(),
+      type: 'loading',
+      content: "Let me process your answers and see what else I need to know...",
       timestamp: new Date()
     }]);
 
@@ -116,13 +169,22 @@ const ChatScreen = ({ formLink, onComplete }: ChatScreenProps) => {
           q5: answers[4] ? parseInt(answers[4]) : null
         },
         contradictionsFound: [],
-        surveyComplete: false
+        surveyComplete: Math.random() > 0.3 // Higher chance of completion for demo
       };
 
       setFilledState(mockValidationResult.filledState);
       
       if (mockValidationResult.surveyComplete) {
-        onComplete(mockValidationResult.filledState);
+        setChatHistory(prev => [...prev.slice(0, -1), {
+          id: Date.now().toString(),
+          type: 'bot',
+          content: "Perfect! I have all the information I need to complete your survey. Let me show you the summary.",
+          timestamp: new Date()
+        }]);
+        
+        setTimeout(() => {
+          onComplete(mockValidationResult.filledState);
+        }, 2000);
       } else {
         // Generate next round of questions
         setIterationCount(prev => prev + 1);
@@ -137,14 +199,20 @@ const ChatScreen = ({ formLink, onComplete }: ChatScreenProps) => {
         ];
         
         setCurrentQuestions(nextQuestions);
-        setChatHistory(prev => [...prev, {
+        setCurrentAnswers(new Array(nextQuestions.length).fill(''));
+        setCurrentQuestionIndex(0);
+        
+        // Remove loading message and continue
+        setChatHistory(prev => [...prev.slice(0, -1), {
           id: Date.now().toString(),
-          type: 'questions',
-          content: nextQuestions,
+          type: 'bot',
+          content: "Thanks for those answers! I have a few more questions to make sure I capture everything accurately.",
           timestamp: new Date()
         }]);
         
-        setUserAnswers(new Array(nextQuestions.length).fill(''));
+        setTimeout(() => {
+          askNextQuestion(nextQuestions, 0);
+        }, 2000);
       }
     } catch (error) {
       console.error('Error processing answers:', error);
@@ -183,7 +251,7 @@ const ChatScreen = ({ formLink, onComplete }: ChatScreenProps) => {
                   {surveySchema?.title}
                 </CardTitle>
                 <p className="text-sm text-gray-600 mt-1">
-                  Iteration {iterationCount + 1} • Answer thoughtfully and completely
+                  Iteration {iterationCount + 1} • Question {currentQuestionIndex + 1} of {currentQuestions.length}
                 </p>
               </div>
               <div className="text-right">
@@ -212,12 +280,9 @@ const ChatScreen = ({ formLink, onComplete }: ChatScreenProps) => {
         </Card>
 
         {/* Input Area */}
-        {currentQuestions.length > 0 && (
-          <UserInput
-            questions={currentQuestions}
-            answers={userAnswers}
-            onAnswersChange={setUserAnswers}
-            onSubmit={handleAnswersSubmit}
+        {waitingForAnswer && !isProcessing && (
+          <SingleQuestionInput
+            onSubmit={handleAnswerSubmit}
             isProcessing={isProcessing}
           />
         )}
