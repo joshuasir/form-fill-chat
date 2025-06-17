@@ -1,12 +1,51 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+
+import React, { useState } from 'react';
+import FormLinkScreen from '@/components/FormLinkScreen';
+import ChatScreen from '@/components/ChatScreen';
+import SummaryScreen from '@/components/SummaryScreen';
+
+type AppState = 'form-input' | 'chat' | 'summary';
 
 const Index = () => {
+  const [currentState, setCurrentState] = useState<AppState>('form-input');
+  const [formLink, setFormLink] = useState('');
+  const [completedSurvey, setCompletedSurvey] = useState<any>(null);
+
+  const handleFormSubmit = (link: string) => {
+    setFormLink(link);
+    setCurrentState('chat');
+  };
+
+  const handleSurveyComplete = (filledState: any) => {
+    setCompletedSurvey(filledState);
+    setCurrentState('summary');
+  };
+
+  const handleRestart = () => {
+    setCurrentState('form-input');
+    setFormLink('');
+    setCompletedSurvey(null);
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
+    <div className="min-h-screen">
+      {currentState === 'form-input' && (
+        <FormLinkScreen onFormSubmit={handleFormSubmit} />
+      )}
+      
+      {currentState === 'chat' && (
+        <ChatScreen 
+          formLink={formLink} 
+          onComplete={handleSurveyComplete}
+        />
+      )}
+      
+      {currentState === 'summary' && (
+        <SummaryScreen 
+          filledState={completedSurvey}
+          onRestart={handleRestart}
+        />
+      )}
     </div>
   );
 };
