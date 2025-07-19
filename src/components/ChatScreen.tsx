@@ -1,12 +1,24 @@
+import React, { useState, useEffect, useRef } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { Bot, User, ArrowUp, CheckCircle } from "lucide-react";
+import ChatBubble from "./ChatBubble";
+import SingleQuestionInput from "./SingleQuestionInput";
+import { callOllama } from "../utils/ollamaApi";
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { Bot, User, ArrowUp, CheckCircle } from 'lucide-react';
-import ChatBubble from './ChatBubble';
-import SingleQuestionInput from './SingleQuestionInput';
-import { callOllama } from '../utils/ollamaApi';
+interface ConvoSchema {
+  title: string;
+  questions: Array<{
+    id: string;
+    label: string;
+    type: string;
+    required?: boolean;
+    answer?: string;
+    intent?: string;
+    des?: string;
+  }>;
+}
 
 interface SurveySchema {
   title: string;
@@ -15,12 +27,14 @@ interface SurveySchema {
     label: string;
     type: string;
     required?: boolean;
+    answer?: string;
   }>;
+  isFilled?:boolean;
 }
 
 interface ChatMessage {
   id: string;
-  type: 'bot' | 'user' | 'question' | 'loading';
+  type: "bot" | "user" | "question" | "loading";
   content: string;
   timestamp: Date;
 }
@@ -28,10 +42,12 @@ interface ChatMessage {
 interface ChatScreenProps {
   formLink: string;
   onComplete: (filledState: any) => void;
+  googleToken?: string | null;
 }
 
-const ChatScreen = ({ formLink, onComplete }: ChatScreenProps) => {
+const ChatScreen = ({ formLink, onComplete, googleToken }: ChatScreenProps) => {
   const [surveySchema, setSurveySchema] = useState<SurveySchema | null>(null);
+  const [convoSchema, setConvoSchema] = useState<ConvoSchema | null>(null);
   const [filledState, setFilledState] = useState<any>({});
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [iterationCount, setIterationCount] = useState(0);
@@ -43,60 +59,257 @@ const ChatScreen = ({ formLink, onComplete }: ChatScreenProps) => {
   const [waitingForAnswer, setWaitingForAnswer] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
+  useEffect(()=>{
+    if(!surveySchema) return;
+    console.log(convoSchema)
+   
+
+    if(surveySchema?.isFilled){
+      setChatHistory((prev) => [
+          ...prev.slice(0, -1),
+          {
+            id: Date.now().toString(),
+            type: "bot",
+            content:
+              "Perfect! I have all the information I need to complete your survey. Let me show you the summary.",
+            timestamp: new Date(),
+          },
+        ]);
+
+        setTimeout(() => {
+          onComplete(surveySchema.questions.map(q=>({question:q.label, answer:q.answer})));
+        }, 2000);
+    }else{
+      
+      setCurrentAnswers(new Array(5).fill(""));
+      setCurrentQuestionIndex(0);
+      
+      // Remove loading message and continue
+      if(!convoSchema){
+        setChatHistory([
+          {
+            id: Date.now().toString(),
+            type: "bot",
+            content:
+            "Hi! I'm here to help you fill out your survey. I'll ask you a few questions one at a time to gather the information needed. Let's get started!",
+            timestamp: new Date(),
+          },
+        ]);
+      }else{
+        setIterationCount((prev) => prev + 1);
+        setChatHistory((prev) => [
+          ...prev.slice(0, -1),
+          {
+            id: Date.now().toString(),
+            type: "bot",
+            content:
+              "Thanks for those answers! I have a few more questions to make sure I capture everything accurately.",
+            timestamp: new Date(),
+          },
+        ]);
+      }
+     
+      generateQuestions(surveySchema);
+    }
+  },[surveySchema])
+
+  const formatChoiceOptions = (options) =>{
+    return options.map(o=>o.value).join(', ');
+  }
+
+  const formatScaleQuestion = (question) => {
+    return (question.low +' as '+question.lowLabel+ ' - '+question.high +' as '+question.highLabel)
+  }
   useEffect(() => {
-    // Mock form extraction - in real implementation, this would parse the Google Form
-    const mockSchema: SurveySchema = {
-      title: "Customer Feedback Survey",
-      questions: [
-        { id: "q1", label: "Full Name", type: "shortText", required: true },
-        { id: "q2", label: "Email Address", type: "email", required: true },
-        { id: "q3", label: "Age", type: "number", required: false },
-        { id: "q4", label: "Occupation", type: "shortText", required: false },
-        { id: "q5", label: "How satisfied are you with our service?", type: "scale", required: true },
-        { id: "q6", label: "Additional Comments", type: "longText", required: false }
-      ]
-    };
-    
-    setSurveySchema(mockSchema);
-    setIsLoading(false);
-    generateInitialQuestions(mockSchema);
-  }, [formLink]);
+    async function fetchFormSchema() {
+      if (!googleToken) return;
+      setIsLoading(true);
+      try {
+        // Extract the form ID from the formLink
+        const match =
+          formLink.match(/\/d\/e\/([a-zA-Z0-9_-]+)/) ||
+          formLink.match(/\/forms\/d\/([a-zA-Z0-9_-]+)/);
+        const formId = match ? match[1] : null;
+        if (!formId) throw new Error("Invalid Google Form link");
+        // Fetch the form schema from your backend server endpoint
+        const response = await fetch(
+          `http://localhost:4000/api/google/forms/${formId}?access_token=${googleToken}`
+        );
+        if (!response.ok) throw new Error("Failed to fetch form schema");
+        const data = await response.json();
+         
+        const formSchema = {
+          title: data.info.title || "Survey",
+          questions: (data.items || []).filter((item:any)=>item.questionItem).map((item: any, idx: number) => ({
+            id: item.questionItem?.question?.questionId || `q${idx + 1}`,
+            label:
+              item.title ||
+              item.questionItem?.question?.title 
+              // + (item.questionItem?.question?.choiceQuestion ? formatChoiceOptions(item.questionItem?.question?.choiceQuestion.options):'') 
+              // + (item.questionItem?.question?.scaleQuestion ? formatScaleQuestion(item.questionItem?.question?.scaleQuestion):'') 
+              ||
+              `Question ${idx + 1}`,
+            type: (item.questionItem?.question?.choiceQuestion || item.questionItem?.question?.scaleQuestion) ? "options" : "shortText",
+            required: item.questionItem?.question?.required || false,
+            options : item.questionItem?.question?.choiceQuestion ?? item.questionItem?.question?.scaleQuestion
+
+          })),
+        }
+        setSurveySchema(formSchema)
+        
+      } catch (err) {
+        setIsLoading(false);
+        setConvoSchema(null);
+        setChatHistory([
+          {
+            id: Date.now().toString(),
+            type: "bot",
+            content:
+              "Failed to load form schema. Please check your link and try again.",
+            timestamp: new Date(),
+          },
+        ]);
+      }
+    }
+    if (formLink && googleToken) {
+      fetchFormSchema();
+    }
+  }, [formLink, googleToken]);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatHistory]);
+/**
+ * Extract the first well‑formed JSON object that appears after a ```json
+ * fence (or after the first “{” if no fence exists), then parse it.
+ */
+function extractQuestions(raw: string) {
+  // Try to find a JSON string inside triple backticks
+  const fenced = raw.match(/```json\s*([\s\S]*?)\s*```/i);
 
-  const generateInitialQuestions = async (schema: SurveySchema) => {
-    setIsProcessing(true);
-    
+  let jsonText: string;
+  if (fenced) {
+    jsonText = fenced[1];
+  } else {
+    const first = raw.indexOf('{');
+    const last = raw.lastIndexOf('}');
+    if (first === -1 || last === -1) {
+      throw new Error('No JSON object found');
+    }
+    jsonText = raw.slice(first, last + 1);
+  }
+
+  let parsed: any;
+
+  try {
+    console.log(jsonText)
+    parsed = JSON.parse(jsonText); // Try once
+  } catch (e1) {
     try {
-      // Add welcome message
-      setChatHistory([{
-        id: Date.now().toString(),
-        type: 'bot',
-        content: "Hi! I'm here to help you fill out your survey. I'll ask you a few questions one at a time to gather the information needed. Let's get started!",
-        timestamp: new Date()
-      }]);
+      // If first parse fails, it's probably a stringified string — parse twice
+      parsed = JSON.parse(JSON.parse(`"${jsonText}"`));
+    } catch (e2) {
+      console.error('Failed to parse JSON', { e1, e2, raw: jsonText });
+      throw e2;
+    }
+  }
 
-      // Mock Ollama response - replace with real API call
-      const mockQuestions = [
-        "Could you please tell me your full name?",
-        "What's the best email address to reach you at?",
-        "How old are you?",
-        "What do you currently do for work?",
-        "On a scale of 1-10, how satisfied are you with our service?"
-      ];
+  if (!Array.isArray(parsed.questions)) {
+    throw new Error('No "questions" array in parsed JSON');
+  }
+
+  return parsed.questions;
+}
+
+  const validateAnswer = async (convoSchema: ConvoSchema, surveySchema: SurveySchema) => {
+    setIsProcessing(true);
+
+    try {
+      // Call the hosted Ollama server with Basic Auth
+      const ollamaRes = await fetch("http://localhost:4000/api/validate_answer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ convoSchema,surveySchema }),
+      });
+      const rawText = await ollamaRes.text();
+
+      // 🔍 Extract and map
+      let questions: any[] = [];
+      try {
+        questions = extractQuestions(rawText);
+      } catch (err) {
+        console.error('Failed to parse questions', err);
+      }
       
-      setCurrentQuestions(mockQuestions);
-      setCurrentAnswers(new Array(mockQuestions.length).fill(''));
-      
+      setSurveySchema({
+        title: surveySchema.title,
+        questions: questions.map((q: any) => ({
+          id: q.id,
+          label: q.label,
+          type: q.type,
+          required: q.required,
+          answer: q.answer
+        })),
+        isFilled:questions.filter(q=>!q.answer).length==0
+      });
+      setIsLoading(false);
+
+    } catch (error) {
+      console.error("Error generating questions:", error);
+    } finally {
+      setIsProcessing(false);
+    }
+  }
+
+  const generateQuestions = async (surveySchema: SurveySchema) => {
+    setIsProcessing(true);
+
+    try {
+      // Call the hosted Ollama server with Basic Auth
+      const ollamaRes = await fetch("http://localhost:4000/api/generate_question", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          surveySchema:{
+            ...surveySchema,
+            questions:surveySchema.questions.filter(q=>!q.answer)
+          }
+         }),
+      });
+      const rawText = await ollamaRes.text();
+
+      // 🔍 Extract and map
+      let questions: any[] = [];
+      try {
+        questions = extractQuestions(rawText);
+      } catch (err) {
+        console.error('Failed to parse questions', err);
+      }
+      // Set the survey schema based on Ollama's result
+      setConvoSchema({
+        title: surveySchema.title,
+        questions: questions.map((q: any) => ({
+          id: q.id,
+          label: q.label,
+          type: q.type,
+          required: q.required,
+          intent: q.intent,
+          des: q.des,
+        })),
+      });
+      setCurrentQuestions(questions.map((q: any) => q.label));
+      setCurrentAnswers(new Array(questions.length).fill(""));
+      setIsLoading(false);
+
       // Ask the first question
       setTimeout(() => {
-        askNextQuestion(mockQuestions, 0);
+        askNextQuestion(
+          questions.map((q: any) => q.label),
+          0
+        );
       }, 1000);
-      
     } catch (error) {
-      console.error('Error generating questions:', error);
+      console.error("Error generating questions:", error);
     } finally {
       setIsProcessing(false);
     }
@@ -104,12 +317,15 @@ const ChatScreen = ({ formLink, onComplete }: ChatScreenProps) => {
 
   const askNextQuestion = (questions: string[], index: number) => {
     if (index < questions.length) {
-      setChatHistory(prev => [...prev, {
-        id: Date.now().toString(),
-        type: 'question',
-        content: questions[index],
-        timestamp: new Date()
-      }]);
+      setChatHistory((prev) => [
+        ...prev,
+        {
+          id: Date.now().toString(),
+          type: "question",
+          content: questions[index],
+          timestamp: new Date(),
+        },
+      ]);
       setWaitingForAnswer(true);
     }
   };
@@ -118,14 +334,17 @@ const ChatScreen = ({ formLink, onComplete }: ChatScreenProps) => {
     if (!answer.trim()) return;
 
     setWaitingForAnswer(false);
-    
+
     // Add user answer to chat
-    setChatHistory(prev => [...prev, {
-      id: Date.now().toString(),
-      type: 'user',
-      content: answer,
-      timestamp: new Date()
-    }]);
+    setChatHistory((prev) => [
+      ...prev,
+      {
+        id: Date.now().toString(),
+        type: "user",
+        content: answer,
+        timestamp: new Date(),
+      },
+    ]);
 
     // Store the answer
     const newAnswers = [...currentAnswers];
@@ -149,73 +368,28 @@ const ChatScreen = ({ formLink, onComplete }: ChatScreenProps) => {
 
   const processBatchAnswers = async (answers: string[]) => {
     setIsProcessing(true);
-    
+
     // Add loading message
-    setChatHistory(prev => [...prev, {
-      id: Date.now().toString(),
-      type: 'loading',
-      content: "Let me process your answers and see what else I need to know...",
-      timestamp: new Date()
-    }]);
+    setChatHistory((prev) => [
+      ...prev,
+      {
+        id: Date.now().toString(),
+        type: "loading",
+        content:
+          "Let me process your answers and see what else I need to know...",
+        timestamp: new Date(),
+      },
+    ]);
 
     try {
-      // Mock validation response - replace with real API call
-      const mockValidationResult = {
-        filledState: {
-          q1: answers[0] || '',
-          q2: answers[1] || '',
-          q3: answers[2] ? parseInt(answers[2]) : null,
-          q4: answers[3] || '',
-          q5: answers[4] ? parseInt(answers[4]) : null
-        },
-        contradictionsFound: [],
-        surveyComplete: Math.random() > 0.3 // Higher chance of completion for demo
-      };
-
-      setFilledState(mockValidationResult.filledState);
-      
-      if (mockValidationResult.surveyComplete) {
-        setChatHistory(prev => [...prev.slice(0, -1), {
-          id: Date.now().toString(),
-          type: 'bot',
-          content: "Perfect! I have all the information I need to complete your survey. Let me show you the summary.",
-          timestamp: new Date()
-        }]);
-        
-        setTimeout(() => {
-          onComplete(mockValidationResult.filledState);
-        }, 2000);
-      } else {
-        // Generate next round of questions
-        setIterationCount(prev => prev + 1);
-        
-        // Mock next questions
-        const nextQuestions = [
-          "Could you provide any additional comments about your experience?",
-          "Is there anything specific you'd like us to improve?",
-          "Would you recommend our service to others?",
-          "How did you first hear about us?",
-          "Any final thoughts you'd like to share?"
-        ];
-        
-        setCurrentQuestions(nextQuestions);
-        setCurrentAnswers(new Array(nextQuestions.length).fill(''));
-        setCurrentQuestionIndex(0);
-        
-        // Remove loading message and continue
-        setChatHistory(prev => [...prev.slice(0, -1), {
-          id: Date.now().toString(),
-          type: 'bot',
-          content: "Thanks for those answers! I have a few more questions to make sure I capture everything accurately.",
-          timestamp: new Date()
-        }]);
-        
-        setTimeout(() => {
-          askNextQuestion(nextQuestions, 0);
-        }, 2000);
-      }
+      validateAnswer(
+        {...convoSchema,
+          questions:convoSchema.questions.map((c,idx)=>({
+        ...c,
+        answer:answers[idx]
+      }))},surveySchema)
     } catch (error) {
-      console.error('Error processing answers:', error);
+      console.error("Error processing answers:", error);
     } finally {
       setIsProcessing(false);
     }
@@ -224,7 +398,9 @@ const ChatScreen = ({ formLink, onComplete }: ChatScreenProps) => {
   const calculateProgress = () => {
     if (!surveySchema) return 0;
     const totalQuestions = surveySchema.questions.length;
-    const filledQuestions = Object.values(filledState).filter(value => value !== '' && value !== null).length;
+    const filledQuestions = Object.values(filledState).filter(
+      (value) => value !== "" && value !== null
+    ).length;
     return (filledQuestions / totalQuestions) * 100;
   };
 
@@ -251,7 +427,8 @@ const ChatScreen = ({ formLink, onComplete }: ChatScreenProps) => {
                   {surveySchema?.title}
                 </CardTitle>
                 <p className="text-sm text-gray-600 mt-1">
-                  Iteration {iterationCount + 1} • Question {currentQuestionIndex + 1} of {currentQuestions.length}
+                  Iteration {iterationCount + 1} • Question{" "}
+                  {currentQuestionIndex + 1} of {currentQuestions.length}
                 </p>
               </div>
               <div className="text-right">

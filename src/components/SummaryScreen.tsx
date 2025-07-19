@@ -5,13 +5,13 @@ import { Button } from '@/components/ui/button';
 import { CheckCircle, Download, RotateCcw } from 'lucide-react';
 
 interface SummaryScreenProps {
-  filledState: any;
+  surveyData: any;
   onRestart: () => void;
 }
 
-const SummaryScreen = ({ filledState, onRestart }: SummaryScreenProps) => {
+const SummaryScreen = ({ surveyData, onRestart }: SummaryScreenProps) => {
   const handleDownloadJSON = () => {
-    const dataStr = JSON.stringify(filledState, null, 2);
+    const dataStr = JSON.stringify(surveyData, null, 2);
     const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
     
     const exportFileDefaultName = 'survey-responses.json';
@@ -21,15 +21,6 @@ const SummaryScreen = ({ filledState, onRestart }: SummaryScreenProps) => {
     linkElement.setAttribute('download', exportFileDefaultName);
     linkElement.click();
   };
-
-  const surveyData = [
-    { question: "Full Name", answer: filledState.q1 || "Not provided" },
-    { question: "Email Address", answer: filledState.q2 || "Not provided" },
-    { question: "Age", answer: filledState.q3 ? filledState.q3.toString() : "Not provided" },
-    { question: "Occupation", answer: filledState.q4 || "Not provided" },
-    { question: "Service Satisfaction (1-10)", answer: filledState.q5 ? filledState.q5.toString() : "Not provided" },
-    { question: "Additional Comments", answer: filledState.q6 || "Not provided" }
-  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4">
