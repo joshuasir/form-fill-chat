@@ -1,6 +1,6 @@
-# React App
+# Convey
 
-A modern React application with a Node.js backend server.
+An AI-powered interview survey app, democratizes high-quality data collection in a data-driven era.
 
 ## Prerequisites
 
