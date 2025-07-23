@@ -39,8 +39,15 @@ Create a .env file in the root directory and configure your environment variable
 AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
 AWS_DEFAULT_REGION=
+
+# DFX CANISTER ENVIRONMENT VARIABLES
+DFX_VERSION='0.28.0'
+DFX_NETWORK='local'
+CANISTER_ID_FRONTEND=
+CANISTER_ID=
+CANISTER_CANDID_PATH=
+# END DFX CANISTER ENVIRONMENT VARIABLES
 ```
-🚫 Never commit your .env file to version control.
 
 ### 4. Start the Backend Server
 In a separate terminal window/tab, start the Node.js backend server:
