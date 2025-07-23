@@ -8,9 +8,11 @@ import { MessageSquare, ArrowRight } from 'lucide-react';
 
 interface FormLinkScreenProps {
   onFormSubmit: (formLink: string) => void;
+  isAuthenticated: boolean;
+  login: () => void;
 }
 
-const FormLinkScreen = ({ onFormSubmit }: FormLinkScreenProps) => {
+const FormLinkScreen = ({ onFormSubmit,isAuthenticated, login }: FormLinkScreenProps) => {
   const [formLink, setFormLink] = useState('');
   const [consent, setConsent] = useState(false);
 
@@ -27,8 +29,12 @@ const FormLinkScreen = ({ onFormSubmit }: FormLinkScreenProps) => {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center p-4">
       <Card className="w-full max-w-md shadow-xl border-0 bg-white/80 backdrop-blur-sm">
         <CardHeader className="text-center space-y-4">
-          <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
-            <MessageSquare className="w-8 h-8 text-white" />
+          <div className="mx-auto w-16 h-16 rounded-full flex items-center justify-center" style={{ 
+            background: `url("/logo.png")`,
+            backgroundSize: 'cover',
+            backgroundPosition:'center center'
+            }}>
+            {/* <MessageSquare className="w-8 h-8 text-white" /> */}
           </div>
           <CardTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
             Survey Chat Assistant
@@ -38,6 +44,15 @@ const FormLinkScreen = ({ onFormSubmit }: FormLinkScreenProps) => {
           </p>
         </CardHeader>
         <CardContent className="space-y-6">
+          {!isAuthenticated && <div>
+          <Button 
+              onClick={login}
+              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 transition-all duration-200 text-white font-medium py-3"
+              >
+Login using  web3 account
+                
+                </Button></div>}
+          {isAuthenticated && 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <label htmlFor="formLink" className="text-sm font-medium text-gray-700">
@@ -80,6 +95,7 @@ const FormLinkScreen = ({ onFormSubmit }: FormLinkScreenProps) => {
               <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
           </form>
+          }
         </CardContent>
       </Card>
     </div>

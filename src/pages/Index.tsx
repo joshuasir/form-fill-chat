@@ -1,13 +1,64 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import FormLinkScreen from "@/components/FormLinkScreen";
 import ChatScreen from "@/components/ChatScreen";
 import SummaryScreen from "@/components/SummaryScreen";
 import { useGoogleLogin } from "@react-oauth/google";
+import { AuthClient } from "@dfinity/auth-client";
+import { createActor } from "@/declarations/frontend";
 
 type AppState = "form-input" | "chat" | "summary";
+const canisterId = '****-77774-qaaba-cai';
+const network = 'local';
+const identityProvider = 'http://*****-77774-qaaaq-cai.localhost:4943';
 
 const Index = () => {
   const [currentState, setCurrentState] = useState<AppState>("form-input");
+  const [state, setState] = useState({
+    actor: undefined,
+    authClient: undefined,
+    isAuthenticated: false,
+    principal: 'Click "Whoami" to see your principal ID'
+  });
+
+  // Initialize auth client
+  useEffect(() => {
+    updateActor();
+  }, []);
+
+  const updateActor = async () => {
+    const authClient = await AuthClient.create();
+    const identity = authClient.getIdentity();
+    const principal = identity.getPrincipal();
+    const actor = createActor(canisterId, {
+      agentOptions: {
+        identity
+      }
+    });
+    const isAuthenticated = await authClient.isAuthenticated();
+ 
+    setState((prev) => ({
+      ...prev,
+      actor,
+      authClient,
+      isAuthenticated,
+      principal:principal.toText()
+    }));
+  };
+
+  const loginCanister = async () => {
+    await state.authClient.login({
+      identityProvider,
+      onSuccess: updateActor
+    });
+  };
+
+  const logout = async () => {
+    await state.authClient.logout();
+    updateActor();
+  };
+
+  
+
   const [formLink, setFormLink] = useState("");
   const [completedSurvey, setCompletedSurvey] = useState<any>(null);
   const [googleToken, setGoogleToken] = useState<string | null>(null);
@@ -55,12 +106,16 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen">
-      {currentState === "form-input" && (
-        <FormLinkScreen onFormSubmit={handleFormSubmit} />
+     <div className="min-h-screen">
+      { currentState === "form-input" && (
+        <FormLinkScreen 
+        onFormSubmit={handleFormSubmit} 
+        isAuthenticated={state.isAuthenticated}
+        login={loginCanister}
+        />
       )}
 
-      {currentState === "chat" && (
+      {state.isAuthenticated && currentState === "chat" && (
         <ChatScreen
           formLink={formLink}
           onComplete={handleSurveyComplete}
@@ -68,7 +123,7 @@ const Index = () => {
         />
       )}
 
-      {currentState === "summary" && (
+      {state.isAuthenticated && currentState === "summary" && (
         <SummaryScreen
           surveyData={completedSurvey}
           onRestart={handleRestart}
