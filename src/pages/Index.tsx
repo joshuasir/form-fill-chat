@@ -5,11 +5,11 @@ import SummaryScreen from "@/components/SummaryScreen";
 import { useGoogleLogin } from "@react-oauth/google";
 import { AuthClient } from "@dfinity/auth-client";
 import { createActor } from "@/declarations/frontend";
+import { canisterId } from "@/declarations/backend";
+import { canisterId as iiCanisterId } from "@/declarations/internet_identity";
 
 type AppState = "form-input" | "chat" | "summary";
-const canisterId = '****-77774-qaaba-cai';
-const network = 'local';
-const identityProvider = 'http://*****-77774-qaaaq-cai.localhost:4943';
+const identityProvider = `http://${iiCanisterId}.localhost:4943`;
 
 const Index = () => {
   const [currentState, setCurrentState] = useState<AppState>("form-input");
