@@ -57,14 +57,6 @@ node server.js
 ```
 By default, the backend runs at http://localhost:3001.
 
-### 5. Start the Frontend (React) Development Server
-To start the React frontend:
-
-```bash
-npm run dev
-```
-This will launch the app at http://localhost:3000 and automatically reload when changes are made.
-
 ### Project Structure
 ```bash
 ├── public/           # Static files
