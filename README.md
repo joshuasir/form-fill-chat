@@ -1,6 +1,6 @@
 # Convey
 
-An AI-powered interview survey app, democratizes high-quality data collection in a data-driven era.
+An AI-powered interview survey app that democratizes high-quality data collection in a data-driven era.
 
 ## Prerequisites
 
@@ -8,6 +8,7 @@ Before running this application, make sure you have the following installed:
 
 - [Node.js](https://nodejs.org/) (version 14 or higher)
 - [npm](https://www.npmjs.com/) (usually comes with Node.js)
+- [DFX SDK (Dfinity)](https://internetcomputer.org/docs/current/developer-docs/setup/cli-tools/install/) — for running ICP canisters locally
 
 ## Getting Started
 
@@ -15,15 +16,23 @@ Follow these steps to get the application running on your local machine:
 
 ### 1. Install Dependencies
 
-First, install all required dependencies:
+Install the required frontend and backend dependencies:
 
 ```bash
-npm i
+npm install
 ```
 
-### 2. Environment Setup
+### 2. Start Local ICP and Deploy Canisters
+Start the local Internet Computer replica and deploy your backend canisters:
 
-Create a `.env` file in the root directory of the project and configure your environment variables. Here's an example of what your `.env` file might look like:
+```bash
+dfx start --background
+dfx deploy
+```
+✅ Important: Make sure your backend canister is deployed. It's required for authentication.
+
+### 3. Set Up Environment Variables
+Create a .env file in the root directory and configure your environment variables:
 
 ```env
 # LLM credentials
@@ -31,47 +40,33 @@ AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
 AWS_DEFAULT_REGION=
 ```
-
-**Note:** Make sure to replace the placeholder values with your actual configuration values. Never commit your `.env` file to version control.
-
-### 3. Start the Development Server
-
-To run the React development server:
-
-```bash
-npm run dev
-```
-
-This will start the development server, typically on `http://localhost:3000`. The page will automatically reload when you make changes to the code.
+🚫 Never commit your .env file to version control.
 
 ### 4. Start the Backend Server
-
 In a separate terminal window/tab, start the Node.js backend server:
 
 ```bash
 node server.js
 ```
+By default, the backend runs at http://localhost:3001.
 
-The backend server will start running, typically on the port specified in your `.env` file (default: `http://localhost:3001`).
+### 5. Start the Frontend (React) Development Server
+To start the React frontend:
 
-## Project Structure
-
+```bash
+npm run dev
 ```
-├── public/          # Static files
-├── src/            # React source code
-├── server.js       # Node.js backend server
-├── package.json    # Project dependencies and scripts
-├── .env           # Environment variables (not tracked in git)
-└── README.md      # This file
+This will launch the app at http://localhost:3000 and automatically reload when changes are made.
+
+### Project Structure
+```bash
+├── public/           # Static files
+├── src/              # React source code
+├── server.js         # Node.js backend server
+├── package.json      # Project dependencies and scripts
+├── .env              # Environment variables (excluded from git)
+└── README.md         # This file
 ```
 
-## Available Scripts
-
-- `npm run dev` - Starts the development server
-- `npm run build` - Creates a production build
-- `npm run test` - Runs the test suite
-- `npm run lint` - Runs the linter
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
+### License
+This project is licensed under the MIT License. See the LICENSE file for more information.
