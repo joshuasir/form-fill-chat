@@ -55,7 +55,7 @@ In a separate terminal window/tab, start the Node.js backend server:
 ```bash
 node server.js
 ```
-By default, the backend runs at http://localhost:3001.
+By default, the backend runs at http://localhost:4000.
 
 ### Project Structure
 ```bash
