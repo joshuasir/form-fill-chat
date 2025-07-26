@@ -29,7 +29,7 @@ Start the local Internet Computer replica and deploy your backend canisters:
 dfx start --background
 dfx deploy
 ```
-✅ Important: Make sure your backend canister is deployed. It's required for authentication.
+✅ Important: Make sure your Identity canister is deployed. It's required for authentication.
 
 ### 3. Set Up Environment Variables
 Create a .env file in the root directory and configure your environment variables:
